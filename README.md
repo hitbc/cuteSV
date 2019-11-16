@@ -30,12 +30,18 @@
 
 ---	
 ### Introduction
-Long-read sequencing technologies enable to comprehensively discover structural variations (SVs). However, it is still non-trivial for state-of-the-art approaches to detect SVs with high sensitivity or high performance or both. Herein, we propose cuteSV, a sensitive, fast and lightweight SV detection approach. cuteSV uses tailored methods to comprehensively collect various types of SV signatures, and a clustering-and-refinement method to implement a stepwise SV detection, which enables to achieve high sensitivity without loss of accuracy. Benchmark results demonstrate that cuteSV has better yields on real datasets. Further, its speed and scalability are outstanding and promising to large-scale data analysis.
+Long-read sequencing enables the comprehensive discovery of structural variations (SVs). However, it is still non-trivial to achieve high sensitivity and performance simultaneously due to the complex SV signatures implied by the noisy long reads. Therefore, we propose cuteSV, a sensitive, fast and scalable long read-based SV detection approach. cuteSV uses tailored methods to collect the signatures of various types of SVs and it employs a clustering-and-refinement method to analyze the signatures to implement sensitive SV detection. Benchmark on real PacBio and ONT datasets demonstrate that cuteSV has better yields and scalability than state-of-the-art tools.
+
+The benchmark results of cuteSV on the HG002 human sample are below:
+
+<img src="hg2_cuteSV_assessments.png" width="800px">
+
+BTW, we used [Truvari](https://github.com/spiralgenetics/truvari) to calculate the recall, precision, and f-measure.
 
 ---
 ### Dependence
 	
-	1. python
+	1. python3
 	2. pysam
 	3. Biopython
 	4. cigar
@@ -43,7 +49,7 @@ Long-read sequencing technologies enable to comprehensively discover structural 
 
 ---
 ### Usage
-	python cuteSV.py <sorted.bam> <output.vcf> <work_dir>
+	cuteSV <sorted.bam> <output.vcf> <work_dir>
 	
 *Suggestions*
 
@@ -61,9 +67,8 @@ Long-read sequencing technologies enable to comprehensively discover structural 
 | Parameter | Description | Default |
 | :------------ |:---------------|-------------:|
 |--threads|Number of threads to use.| 16 |
-|--batches| A batches of reads to load.        |10,000,000|
+|--batches| Batch of genome segmentation interval.        |10,000,000|
 |--sample| Sample name/id |NULL|
-|--genotype|Optional genotyping (True/False).|False|
 |--max_split_parts|Maximum number of split segments a read may be aligned before it is ignored.|7|
 |--min_mapq|Minimum mapping quality value of alignment to be taken into account.|20|
 |--min_read_len|Ignores reads that only report alignments with not longer then bp.|500|
@@ -88,6 +93,17 @@ You can download them at:
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3477781.svg)](https://doi.org/10.5281/zenodo.3477781)
 
 Please cite the manuscript of cuteSV before using these callsets.
+
+---
+### Changelog
+
+	cuteSV (v1.0.2):
+	1.Improve the genotyping performance and enable it to be default option.
+	2.Make the description of parameters better.
+	3.Modify the header description of vcf file.
+	4.Add two new indicators, i.e., BREAKPOINT_STD and SVLEN_STD, to further characterise deletion and insertion.
+	5.Remove a few redundant functions which will reduce code readability.
+
 
 ---
 ### Citation

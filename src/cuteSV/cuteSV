@@ -395,10 +395,10 @@ def main_ctrl(args):
 	Task_list = list()
 	chr_name_list = list()
 	contigINFO = list()
-	if args.temp_dir[-1] == '/':
-		temporary_dir = args.temp_dir
+	if args.work_dir[-1] == '/':
+		temporary_dir = args.work_dir
 	else:
-		temporary_dir = args.temp_dir+'/'
+		temporary_dir = args.work_dir+'/'
 
 	ref_ = samfile.get_index_statistics()
 	for i in ref_:
@@ -452,27 +452,28 @@ def main_ctrl(args):
 		for svtype in ["DEL", "INS", "INV"]:
 			if svtype == "INV":
 				para = [("%s%s.sigs"%(temporary_dir, svtype), chr, svtype, args.min_support, 
-					args.max_cluster_bias_INV, args.min_size)]
+					args.max_cluster_bias_INV, args.min_size, args.input)]
 				result.append(analysis_pools.map_async(run_inv, para))
 				pass
 			if svtype == 'DEL':
 				para = [("%s%s.sigs"%(temporary_dir, svtype), chr, svtype, args.min_support, 
 					args.diff_ratio_merging_DEL, args.max_cluster_bias_DEL, args.diff_ratio_filtering_DEL, 
-					min(args.min_support, 5))]
+					min(args.min_support, 5), args.input)]
 				result.append(analysis_pools.map_async(run_del, para))
 			if svtype == 'INS':
 				para = [("%s%s.sigs"%(temporary_dir, svtype), chr, svtype, args.min_support, 
 					args.diff_ratio_merging_INS, args.max_cluster_bias_INS, args.diff_ratio_filtering_INS, 
-					min(args.min_support, 5))]
+					min(args.min_support, 5), args.input)]
 				result.append(analysis_pools.map_async(run_ins, para))
 		# DUP
-		para = [("%s%s.sigs"%(temporary_dir, "DUP"), chr, args.min_support, args.max_cluster_bias_DUP, args.min_size)]
+		para = [("%s%s.sigs"%(temporary_dir, "DUP"), chr, args.min_support, args.max_cluster_bias_DUP,
+		 args.min_size, args.input)]
 		result.append(analysis_pools.map_async(run_dup, para))
 
 	for i in process_tra:
 		# TRA
 		para = [("%s%s.sigs"%(temporary_dir, "TRA"), i[0], i[1], args.min_support, 
-			args.diff_ratio_filtering_TRA, args.max_cluster_bias_TRA)]
+			args.diff_ratio_filtering_TRA, args.max_cluster_bias_TRA, args.input)]
 		result.append(analysis_pools.map_async(run_tra, para))
 
 	analysis_pools.close()
@@ -485,7 +486,7 @@ def main_ctrl(args):
 		except:
 			pass
 
-	logging.info("Writing into disk.")
+	logging.info("Writing to your output file.")
 
 	# sort SVs by [chr] and [pos]
 	semi_result = sorted(semi_result, key = lambda x:(x[0], int(x[2])))
