@@ -2,12 +2,12 @@
  * All rights Reserved, Designed By HIT-Bioinformatics   
  * @Title:  cuteSV_Description.py
  * @author: tjiang
- * @date: Nov 15th 2019
- * @version V1.0.2   
+ * @date: Apr 26th 2020
+ * @version V1.0.7
 '''
 import argparse
 
-VERSION = '1.0.4'
+VERSION = '1.0.7'
 
 class cuteSVdp(object):
 	'''
@@ -16,11 +16,14 @@ class cuteSVdp(object):
 	'''
 
 	USAGE="""\
-	Long read based fast and accurate SV detection with cuteSV.
-	
+		
 	Current version: v%s
 	Author: Tao Jiang
 	Contact: tjiang@hit.edu.cn
+
+	If you use cuteSV in your work, please cite:
+		Jiang T et al. Long-read-based human genomic structural variation detection with cuteSV. 
+		Genome Biol 21,189(2020). https://doi.org/10.1186/s13059-020-02107-y
 
 
 	Suggestions:
@@ -55,6 +58,9 @@ def parseArgs(argv):
 		metavar="[BAM]", 
 		type = str, 
 		help ="Sorted .bam file form NGMLR or Minimap2.")
+	parser.add_argument("reference",  
+		type = str, 
+		help ="The reference genome in fasta format.")
 	parser.add_argument('output', 
 		type = str, 
 		help = "Output VCF format file.")
@@ -77,6 +83,10 @@ def parseArgs(argv):
 		default = "NULL",
 		type = str)
 
+	parser.add_argument('--retain_work_dir',
+		help = "Enable to retain temporary folder and files.",
+		action="store_true")
+
 	# **************Parameters in signatures collection******************
 	GroupSignaturesCollect = parser.add_argument_group('Collection of SV signatures')
 	GroupSignaturesCollect.add_argument('-p', '--max_split_parts', 
@@ -91,9 +101,13 @@ def parseArgs(argv):
 		help = "Ignores reads that only report alignments with not longer than bp.[%(default)s]", 
 		default = 500, 
 		type = int)
-	GroupSignaturesCollect.add_argument('-m', '--merge_threshold', 
-		help = "Maximum distance of SV signals to be merged.[%(default)s]", 
-		default = 500, 
+	GroupSignaturesCollect.add_argument('-md', '--merge_del_threshold', 
+		help = "Maximum distance of deletion signals to be merged.[%(default)s]", 
+		default = 0, 
+		type = int)
+	GroupSignaturesCollect.add_argument('-mi', '--merge_ins_threshold', 
+		help = "Maximum distance of insertion signals to be merged.[%(default)s]", 
+		default = 100, 
 		type = int)
 	# The min_read_len in last version is 2000.
 	# signatures with overlap need to be filtered
@@ -108,7 +122,11 @@ def parseArgs(argv):
 		help = "Minimum size of SV to be reported.[%(default)s]", 
 		default = 30, 
 		type = int)
-	GroupSVCluster.add_argument('-L', '--min_siglength', 
+	GroupSVCluster.add_argument('-L', '--max_size', 
+		help = "Maximum size of SV to be reported.[%(default)s]", 
+		default = 100000, 
+		type = int)
+	GroupSVCluster.add_argument('-sl', '--min_siglength', 
 		help = "Minimum length of SV signal to be extracted.[%(default)s]", 
 		default = 10, 
 		type = int)
@@ -118,14 +136,18 @@ def parseArgs(argv):
 	GroupGenotype.add_argument('--genotype',
 		help = "Enable to generate genotypes.",
 		action="store_true")
-	GroupGenotype.add_argument('--hom', 
-		help = "Threshold on allele frequency for homozygous.[%(default)s]", 
-		default = 0.8, 
-		type = float)
-	GroupGenotype.add_argument('--het', 
-		help = "Threshold on allele frequency for heterozygous.[%(default)s].", 
-		default = 0.2, 
-		type = float)
+	GroupGenotype.add_argument('--gt_round', 
+		help = "Maximum round of iteration for alignments searching if perform genotyping.[%(default)s]", 
+		default = 500, 
+		type = int)
+	# GroupGenotype.add_argument('--hom', 
+	# 	help = "Threshold on allele frequency for homozygous.[%(default)s]", 
+	# 	default = 0.8, 
+	# 	type = float)
+	# GroupGenotype.add_argument('--het', 
+	# 	help = "Threshold on allele frequency for heterozygous.[%(default)s].", 
+	# 	default = 0.2, 
+	# 	type = float)
 
 	# Just a parameter for debug.
 	# Will be removed in future.
@@ -201,7 +223,7 @@ def parseArgs(argv):
 	args = parser.parse_args(argv)
 	return args
 
-def Generation_VCF_header(file, contiginfo, sample):
+def Generation_VCF_header(file, contiginfo, sample, argv):
 	# General header
 	file.write("##fileformat=VCFv4.2\n")
 	file.write("##source=cuteSV-%s\n"%(VERSION))
@@ -216,7 +238,7 @@ def Generation_VCF_header(file, contiginfo, sample):
 	file.write("##ALT=<ID=DEL,Description=\"Deletion relative to the reference\">\n")
 	file.write("##ALT=<ID=DUP,Description=\"Region of elevated copy number relative to the reference\">\n")
 	file.write("##ALT=<ID=INV,Description=\"Inversion of reference sequence\">\n")
-	file.write("##ALT=<ID=TRA,Description=\"Translocation\">\n")
+	file.write("##ALT=<ID=BND,Description=\"Breakend of translocation\">\n")
 
 	# INFO
 	file.write("##INFO=<ID=PRECISE,Number=0,Type=Flag,Description=\"Precise structural variant\">\n")
@@ -225,14 +247,20 @@ def Generation_VCF_header(file, contiginfo, sample):
 	file.write("##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"Difference in length between REF and ALT alleles\">\n")
 	file.write("##INFO=<ID=CHR2,Number=1,Type=String,Description=\"Chromosome for END coordinate in case of a translocation\">\n")
 	file.write("##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the variant described in this record\">\n")
-	file.write("##INFO=<ID=BREAKPOINT_STD,Number=2,Type=Integer,Description=\"Standard deviation of SV start position (breakpoint)\">\n")
-	file.write("##INFO=<ID=SVLEN_STD,Number=2,Type=Integer,Description=\"Standard deviation of SV length\">\n")
+	file.write("##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS for imprecise variants\">\n")
+	file.write("##INFO=<ID=CILEN,Number=2,Type=Integer,Description=\"Confidence interval around inserted/deleted material between breakends\">\n")
 	# file.write("##INFO=<ID=MATEID,Number=.,Type=String,Description=\"ID of mate breakends\">\n")
 	file.write("##INFO=<ID=RE,Number=1,Type=Integer,Description=\"Number of read support this record\">\n")
-
+	file.write("##INFO=<ID=STRAND,Number=A,Type=String,Description=\"Strand orientation of the adjacency in BEDPE format (DEL:+-, DUP:-+, INV:++/--)\">\n")
+	file.write("##INFO=<ID=RNAMES,Number=.,Type=String,Description=\"Supporting read names of SVs (comma separated)\">\n")
+	file.write("##FILTER=<ID=q5,Description=\"Quality below 5\">\n")
 	# FORMAT
 	# file.write("\n")
 	file.write("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n")
-	file.write("##FORMAT=<ID=DR,Number=1,Type=Integer,Description=\"# high-quality reference reads\">\n")
-	file.write("##FORMAT=<ID=DV,Number=1,Type=Integer,Description=\"# high-quality variant reads\">\n")
+	file.write("##FORMAT=<ID=DR,Number=1,Type=Integer,Description=\"# High-quality reference reads\">\n")
+	file.write("##FORMAT=<ID=DV,Number=1,Type=Integer,Description=\"# High-quality variant reads\">\n")
+	file.write("##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"# Phred-scaled genotype likelihoods rounded to the closest integer\">\n")
+	file.write("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"# Genotype quality\">\n")
+
+	file.write("##CommandLine=\"cuteSV %s\"\n"%(" ".join(argv)))
 	file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n"%(sample))

@@ -26,7 +26,7 @@
 	or
 	$ conda install -c bioconda cutesv
 	or 
-	$ git clone https://github.com/tjiangHIT/cuteSV.git && cd cuteSV/ && pip install .
+	$ git clone https://github.com/tjiangHIT/cuteSV.git && cd cuteSV/ && python setup.py install 
 
 ---	
 ### Introduction
@@ -68,17 +68,19 @@ For more detailed implementation of SV benchmarks, we show an example [here](htt
 | Parameter | Description | Default |
 | :------------ |:---------------|-------------:|
 |--threads|Number of threads to use.| 16 |
-|--batches| Batch of genome segmentation interval.        |10,000,000|
+|--batches| Batch of genome segmentation interval.|10,000,000|
 |--sample| Sample name/id |NULL|
+|--retain_work_dir|Enable to retain temporary folder and files.|False
 |--max_split_parts|Maximum number of split segments a read may be aligned before it is ignored.|7|
 |--min_mapq|Minimum mapping quality value of alignment to be taken into account.|20|
 |--min_read_len|Ignores reads that only report alignments with not longer than bp.|500|
-|--merge_threshold|Maximum distance of SV signals to be merged.|500|
+|--merge_del_threshold|Maximum distance of deletion signals to be merged.|0|
+|--merge_ins_threshold|Maximum distance of insertion signals to be merged.|100|
 |--min_support|Minimum number of reads that support a SV to be reported.|10|
-|--min_length|Minimum length of SV to be reported.|30|
+|--min_size|Minimum length of SV to be reported.|30|
+|--max_size|Minimum length of SV to be reported.|100000|
 |--genotype|Enable to generate genotypes.|False|
-|--hom|Threshold on allele frequency for homozygous.|0.8|
-|--het|Threshold on allele frequency for heterozygous.|0.2|
+|--gt_round|Maximum round of iteration for alignments searching if perform genotyping.|500|
 |--max_cluster_bias_INS|Maximum distance to cluster read together for insertion.|100|
 |--diff_ratio_merging_INS|Do not merge breakpoints with basepair identity more than the ratio of *default* for insertion.|0.2|
 |--diff_ratio_filtering_INS|Filter breakpoints with basepair identity less than the ratio of *default* for insertion.|0.6|
@@ -95,12 +97,30 @@ For more detailed implementation of SV benchmarks, we show an example [here](htt
 We provided the SV callsets of the HG002 human sample produced by cuteSV form three different long-read sequencing platforms (i.e. PacBio CLR, PacBio CCS, and ONT PromethION). 
 
 You can download them at: 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3556403.svg)](https://doi.org/10.5281/zenodo.3556403)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3783083.svg)](https://doi.org/10.5281/zenodo.3783083)
 
 Please cite the manuscript of cuteSV before using these callsets.
 
 ---
 ### Changelog
+
+	cuteSV (v1.0.7):
+	1. Add read name list for each SV call.
+	2. Fix several descriptions in VCF header field.
+
+	cuteSV (v1.0.6):
+	1.Improvement of genotyping by calculation of likelihood.
+	2.Add variant quality value, phred-scaled genotype likelihood and genotype quality in order to filter false positive SV or quality control.
+	3.Add --gt_round parameter to control the number of read scans.
+	4.Add variant strand of DEL/DUP/INV.
+	5.Fix several bugs.
+
+	cuteSV (v1.0.5):
+	1.Add new options for specificly setting the threshold of deletion/insertion signals merging in the same read. The default parameters are 0 bp for deletion and 100 bp for insertion.
+	2.Remove parameter --merge_threshold.
+	3.Fix bugs in inversion and translocation calling.
+	4.Add new option for specificly setting the maximum size of SV to be discovered. The default value is 100,000 bp. 
+
 
 	cuteSV (v1.0.4):
 	1.Add a new option for specificly setting the threshold of SV signals merging in the same read. The default parameter is 500 bp. You can reduce it for high-quality sequencing datasets like PacBio HiFi (CCS).
@@ -122,7 +142,7 @@ Please cite the manuscript of cuteSV before using these callsets.
 
 ---
 ### Citation
-Long Read based Human Genomic Structural Variation Detection with cuteSV. Tao Jiang, et al. bioRxiv 780700; doi: https://doi.org/10.1101/780700
+Jiang T et al. Long-read-based human genomic structural variation detection with cuteSV. Genome Biol 21, 189 (2020). https://doi.org/10.1186/s13059-020-02107-y
 	
 ---
 ### Contact

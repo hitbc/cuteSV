@@ -1,8 +1,9 @@
 import sys
 import numpy as np
+from cuteSV.cuteSV_genotype import cal_GL, threshold_ref_count, count_coverage
 
 def resolution_INV(path, chr, svtype, read_count, max_cluster_bias, sv_size, 
-	bam_path, action, hom, het):
+	bam_path, action, MaxSize, gt_round):
 	'''
 	cluster INV
 	************************************************************************
@@ -30,7 +31,7 @@ def resolution_INV(path, chr, svtype, read_count, max_cluster_bias, sv_size,
 
 	# Initialization of some temporary variables
 	semi_inv_cluster = list()
-	semi_inv_cluster.append([0,0,''])
+	semi_inv_cluster.append([0,0,'',''])
 	candidate_single_SV = list()
 
 	# Load inputs & cluster breakpoint from each signature read 
@@ -40,13 +41,21 @@ def resolution_INV(path, chr, svtype, read_count, max_cluster_bias, sv_size,
 		if seq[1] != chr:
 			continue
 
-		breakpoint_1_in_read = int(seq[2])
-		breakpoint_2_in_read = int(seq[3])
-		read_id = seq[4]
+		strand = seq[2]
+		breakpoint_1_in_read = int(seq[3])
+		breakpoint_2_in_read = int(seq[4])
+		read_id = seq[5]
 
-		if breakpoint_1_in_read - semi_inv_cluster[-1][0] > max_cluster_bias:
+		# print("new")
+		# print(seq[1], seq[2], seq[3], seq[4], seq[5])
+		# print(semi_inv_cluster)
+
+		if breakpoint_1_in_read - semi_inv_cluster[-1][0] > max_cluster_bias or breakpoint_2_in_read - semi_inv_cluster[-1][1] > max_cluster_bias or strand != semi_inv_cluster[-1][-1]:
 			if len(semi_inv_cluster) >= read_count:
-				generate_semi_inv_cluster(semi_inv_cluster, 
+				if semi_inv_cluster[-1][0] == semi_inv_cluster[-1][1] == 0:
+					pass
+				else:
+					generate_semi_inv_cluster(semi_inv_cluster, 
 											chr, 
 											svtype, 
 											read_count, 
@@ -55,15 +64,18 @@ def resolution_INV(path, chr, svtype, read_count, max_cluster_bias, sv_size,
 											max_cluster_bias,
 											bam_path,
 											action,
-											hom,
-											het)
+											MaxSize,
+											gt_round)
 			semi_inv_cluster = []
-			semi_inv_cluster.append([breakpoint_1_in_read, breakpoint_2_in_read, read_id])
+			semi_inv_cluster.append([breakpoint_1_in_read, breakpoint_2_in_read, read_id, strand])
 		else:
-			semi_inv_cluster.append([breakpoint_1_in_read, breakpoint_2_in_read, read_id])
+			semi_inv_cluster.append([breakpoint_1_in_read, breakpoint_2_in_read, read_id, strand])
 
 	if len(semi_inv_cluster) >= read_count:
-		generate_semi_inv_cluster(semi_inv_cluster, 
+		if semi_inv_cluster[-1][0] == semi_inv_cluster[-1][1] == 0:
+			pass
+		else:
+			generate_semi_inv_cluster(semi_inv_cluster, 
 									chr, svtype, 
 									read_count, 
 									sv_size, 
@@ -71,13 +83,15 @@ def resolution_INV(path, chr, svtype, read_count, max_cluster_bias, sv_size,
 									max_cluster_bias,
 									bam_path,
 									action,
-									hom,
-									het)
+									MaxSize,
+									gt_round)
 	file.close()
 	return candidate_single_SV
 
 def generate_semi_inv_cluster(semi_inv_cluster, chr, svtype, read_count, sv_size, 
-	candidate_single_SV, max_cluster_bias, bam_path, action, hom, het):
+	candidate_single_SV, max_cluster_bias, bam_path, action, MaxSize, gt_round):
+
+	strand = semi_inv_cluster[0][-1]
 
 	read_id = [i[2] for i in semi_inv_cluster]
 	support_read = len(list(set(read_id)))
@@ -107,21 +121,35 @@ def generate_semi_inv_cluster(semi_inv_cluster, chr, svtype, read_count, sv_size
 				inv_len = breakpoint_2 - breakpoint_1
 				if inv_len >= sv_size and max_count_id >= read_count:
 					# candidate_single_SV.append('%s\t%s\t%d\t%d\t%d\n'%(chr, svtype, breakpoint_1, breakpoint_2, max_count_id))
-					if inv_len <= 100000:
+					if inv_len <= MaxSize:
 						if action:
-							DV, DR, GT = call_gt(bam_path, int(breakpoint_1), 
-								int(breakpoint_2), chr, list(temp_id.keys()), 
-								max_cluster_bias, hom, het)
+							import time
+							# time_start = time.time()
+							DV, DR, GT, GL, GQ, QUAL = call_gt(bam_path, int(breakpoint_1), 
+															int(breakpoint_2), chr, list(temp_id.keys()), 
+															max_cluster_bias, gt_round)
+							# print(DV, DR, GT, GL, GQ, QUAL)
+							# cost_time = time.time() - time_start
+							# print("INV", chr, int(breakpoint_1), int(breakpoint_2), DR, DV, QUAL, "%.4f"%cost_time)
 						else:
 							DR = '.'
 							GT = './.'
+							GL = '.,.,.'
+							GQ = "."
+							QUAL = "."
 						candidate_single_SV.append([chr, 
 													svtype, 
 													str(int(breakpoint_1)), 
 													str(int(inv_len)), 
 													str(max_count_id),
 													str(DR),
-													str(GT)])
+													str(GT),
+													strand,
+													str(GL),
+													str(GQ),
+													str(QUAL),
+													str(','.join(list(temp_id.keys())))])
+						# print(chr, svtype, str(int(breakpoint_1)), str(int(inv_len)), str(max_count_id), str(DR), str(GT), strand)
 
 			temp_id = dict()
 			temp_count = 1
@@ -144,56 +172,86 @@ def generate_semi_inv_cluster(semi_inv_cluster, chr, svtype, read_count, sv_size
 		inv_len = breakpoint_2 - breakpoint_1
 		if inv_len >= sv_size and max_count_id >= read_count:
 			# candidate_single_SV.append('%s\t%s\t%d\t%d\t%d\n'%(chr, svtype, breakpoint_1, breakpoint_2, max_count_id))
-			if inv_len <= 100000:
+			if inv_len <= MaxSize:
 				if action:
-					DV, DR, GT = call_gt(bam_path, int(breakpoint_1), 
-						int(breakpoint_2), chr, list(temp_id.keys()), 
-						max_cluster_bias, hom, het)
+					import time
+					# time_start = time.time()
+					DV, DR, GT, GL, GQ, QUAL = call_gt(bam_path, int(breakpoint_1), 
+													int(breakpoint_2), chr, list(temp_id.keys()), 
+													max_cluster_bias, gt_round)
+					# print(DV, DR, GT, GL, GQ, QUAL)
+					# cost_time = time.time() - time_start
+					# print("INV", chr, int(breakpoint_1), int(breakpoint_2), DR, DV, QUAL, "%.4f"%cost_time)
 				else:
 					DR = '.'
 					GT = './.'
+					GL = '.,.,.'
+					GQ = "."
+					QUAL = "."
 				candidate_single_SV.append([chr, 
 											svtype, 
 											str(int(breakpoint_1)), 
 											str(int(inv_len)), 
 											str(max_count_id),
 											str(DR),
-											str(GT)])
+											str(GT),
+											strand,
+											str(GL),
+											str(GQ),
+											str(QUAL),
+											str(','.join(list(temp_id.keys())))])
+				# print(chr, svtype, str(int(breakpoint_1)), str(int(inv_len)), str(max_count_id), str(DR), str(GT), strand)
 
 def run_inv(args):
 	return resolution_INV(*args)
 
-def count_coverage(chr, s, e, f):
-	read_count = set()
-	for i in f.fetch(chr, s, e):
-		if i.flag not in [0,16]:
-			continue
-		if i.reference_start < s and i.reference_end > e:
-			read_count.add(i.query_name)
-	return read_count
-
-def assign_gt(a, b, hom, het):
-	if b == 0:
-		return "1/1"
-	if a*1.0/b < het:
-		return "0/0"
-	elif a*1.0/b >= het and a*1.0/b < hom:
-		return "0/1"
-	elif a*1.0/b >= hom and a*1.0/b < 1.0:
-		return "1/1"
-	else:
-		return "1/1"
-
-def call_gt(bam_path, pos_1, pos_2, chr, read_id_list, max_cluster_bias, hom, het):
+def call_gt(bam_path, pos_1, pos_2, chr, read_id_list, max_cluster_bias, gt_round):
 	import pysam
 	bamfile = pysam.AlignmentFile(bam_path)
-	search_start = max(int(pos_1) - max_cluster_bias, 0)
-	search_end = min(int(pos_2) + max_cluster_bias, bamfile.get_reference_length(chr))
-	querydata = count_coverage(chr, search_start, search_end, bamfile)
+	querydata = set()
+	search_start = max(int(pos_1) - max_cluster_bias/2, 0)
+	search_end = min(int(pos_1) + max_cluster_bias/2, bamfile.get_reference_length(chr))
+
+	up_bound = threshold_ref_count(len(read_id_list))
+	status = count_coverage(chr, 
+							search_start, 
+							search_end, 
+							bamfile, 
+							querydata, 
+							up_bound, 
+							gt_round)
+
+	if status == -1:
+		DR = '.'
+		GT = "./."
+		GL = ".,.,."
+		GQ = "."
+		QUAL = "."
+
+	elif status == 1:
+		DR = 0
+		for query in querydata:
+			if query not in read_id_list:
+				DR += 1
+		GT, GL, GQ, QUAL = cal_GL(DR, len(read_id_list))
+
+	else:
+		search_start = max(int(pos_2 - max_cluster_bias/2), 0)
+		search_end = min(int(pos_2 + max_cluster_bias/2), bamfile.get_reference_length(chr))
+		status_2 = count_coverage(chr, 
+									search_start, 
+									search_end, 
+									bamfile, 
+									querydata, 
+									up_bound, 
+									gt_round)
+		# status_2 judgement
+		DR = 0
+		for query in querydata:
+			if query not in read_id_list:
+				DR += 1
+		GT, GL, GQ, QUAL = cal_GL(DR, len(read_id_list))
+
 	bamfile.close()
-	DR = 0
-	for query in querydata:
-		if query not in read_id_list:
-			DR += 1
-	return len(read_id_list), DR, assign_gt(len(read_id_list), DR+len(read_id_list), hom, het)
+	return len(read_id_list), DR, GT, GL, GQ, QUAL
 	
