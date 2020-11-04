@@ -2,17 +2,16 @@
  * All rights Reserved, Designed By HIT-Bioinformatics   
  * @Title:  cuteSV_Description.py
  * @author: tjiang
- * @date: Apr 26th 2020
- * @version V1.0.7
+ * @date: Nov 2nd 2020
+ * @version V1.0.9
 '''
 import argparse
 
-VERSION = '1.0.7'
+VERSION = '1.0.9'
 
 class cuteSVdp(object):
 	'''
 	Detailed descriptions of cuteSV version and its parameters.
-
 	'''
 
 	USAGE="""\
@@ -28,16 +27,23 @@ class cuteSVdp(object):
 
 	Suggestions:
 
-	For PacBio CLR/ONT data:
+	For PacBio CLR data:
 		--max_cluster_bias_INS		100
-		--diff_ratio_merging_INS	0.2
-		--diff_ratio_filtering_INS	0.6
-		--diff_ratio_filtering_DEL	0.7
+		--diff_ratio_merging_INS	0.3
+		--max_cluster_bias_DEL	200
+		--diff_ratio_merging_DEL	0.5
+
 	For PacBio CCS(HIFI) data:
-		--max_cluster_bias_INS		200
-		--diff_ratio_merging_INS	0.65
-		--diff_ratio_filtering_INS	0.65
-		--diff_ratio_filtering_DEL	0.35
+		--max_cluster_bias_INS		1000
+		--diff_ratio_merging_INS	0.9
+		--max_cluster_bias_DEL	1000
+		--diff_ratio_merging_DEL	0.5
+
+	For ONT data:
+		--max_cluster_bias_INS		100
+		--diff_ratio_merging_INS	0.3
+		--max_cluster_bias_DEL	100
+		--diff_ratio_merging_DEL	0.3
 
 
 	"""%(VERSION)
@@ -87,6 +93,10 @@ def parseArgs(argv):
 		help = "Enable to retain temporary folder and files.",
 		action="store_true")
 
+	parser.add_argument('--report_readid',
+		help = "Enable to report supporting read ids for each SV.",
+		action="store_true")
+
 	# **************Parameters in signatures collection******************
 	GroupSignaturesCollect = parser.add_argument_group('Collection of SV signatures')
 	GroupSignaturesCollect.add_argument('-p', '--max_split_parts', 
@@ -102,11 +112,11 @@ def parseArgs(argv):
 		default = 500, 
 		type = int)
 	GroupSignaturesCollect.add_argument('-md', '--merge_del_threshold', 
-		help = "Maximum distance of deletion signals to be merged.[%(default)s]", 
+		help = "Maximum distance of deletion signals to be merged. In our paper, I used -md 500 to process HG002 real human sample data.[%(default)s]", 
 		default = 0, 
 		type = int)
 	GroupSignaturesCollect.add_argument('-mi', '--merge_ins_threshold', 
-		help = "Maximum distance of insertion signals to be merged.[%(default)s]", 
+		help = "Maximum distance of insertion signals to be merged. In our paper, I used -mi 500 to process HG002 real human sample data.[%(default)s]", 
 		default = 100, 
 		type = int)
 	# The min_read_len in last version is 2000.
@@ -156,6 +166,13 @@ def parseArgs(argv):
 	# 	default = "pbccs",
 	# 	type = str)
 
+	# **************Parameters in force calling******************
+	GroupGenotype = parser.add_argument_group('Force calling')
+	GroupGenotype.add_argument('-Ivcf', #'--MERGED_VCF',
+		help = "Optional given vcf file. Enable to perform force calling. [NULL]",
+		default = None,
+        type = str)
+
 	# **************Advanced Parameters******************
 	GroupAdvanced = parser.add_argument_group('Advanced')
 
@@ -166,12 +183,12 @@ def parseArgs(argv):
 		type = int)
 	GroupAdvanced.add_argument('--diff_ratio_merging_INS', 
 		help = "Do not merge breakpoints with basepair identity more than [%(default)s] for insertion.", 
-		default = 0.2, 
+		default = 0.3, 
 		type = float)
-	GroupAdvanced.add_argument('--diff_ratio_filtering_INS', 
-		help = "Filter breakpoints with basepair identity less than [%(default)s] for insertion.", 
-		default = 0.6, 
-		type = float)
+	# GroupAdvanced.add_argument('--diff_ratio_filtering_INS', 
+	# 	help = "Filter breakpoints with basepair identity less than [%(default)s] for insertion.", 
+	# 	default = 0.6, 
+	# 	type = float)
 
 	# ++++++DEL++++++
 	GroupAdvanced.add_argument('--max_cluster_bias_DEL', 
@@ -180,12 +197,12 @@ def parseArgs(argv):
 		type = int)
 	GroupAdvanced.add_argument('--diff_ratio_merging_DEL', 
 		help = "Do not merge breakpoints with basepair identity more than [%(default)s] for deletion.", 
-		default = 0.3, 
+		default = 0.5, 
 		type = float)
-	GroupAdvanced.add_argument('--diff_ratio_filtering_DEL', 
-		help = "Filter breakpoints with basepair identity less than [%(default)s] for deletion.", 
-		default = 0.7, 
-		type = float)
+	# GroupAdvanced.add_argument('--diff_ratio_filtering_DEL', 
+	# 	help = "Filter breakpoints with basepair identity less than [%(default)s] for deletion.", 
+	# 	default = 0.7, 
+	# 	type = float)
 
 	# ++++++INV++++++
 	GroupAdvanced.add_argument('--max_cluster_bias_INV', 
@@ -263,4 +280,3 @@ def Generation_VCF_header(file, contiginfo, sample, argv):
 	file.write("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"# Genotype quality\">\n")
 
 	file.write("##CommandLine=\"cuteSV %s\"\n"%(" ".join(argv)))
-	file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n"%(sample))

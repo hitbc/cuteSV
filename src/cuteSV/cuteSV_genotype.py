@@ -102,13 +102,14 @@ def generate_output(args, semi_result, contigINFO, argv, ref_g):
 
 	file = open(args.output, 'w')
 	Generation_VCF_header(file, contigINFO, args.sample, argv)
+	file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n"%(args.sample))
 
 	for i in semi_result:
 		if i[1] in ["DEL", "INS"]:
 			if i[1] == "INS":
 				cal_end = int(i[2]) + 1
 			else:
-				cal_end = int(i[2]) + abs(int(float(i[3])))
+				cal_end = int(i[2]) + 1 + abs(int(float(i[3])))
 			info_list = "{PRECISION};SVTYPE={SVTYPE};SVLEN={SVLEN};END={END};CIPOS={CIPOS};CILEN={CILEN};RE={RE};RNAMES={RNAMES}".format(
 				PRECISION = "IMPRECISE" if i[8] == "0/0" else "PRECISE", 
 				SVTYPE = i[1], 
@@ -117,7 +118,7 @@ def generate_output(args, semi_result, contigINFO, argv, ref_g):
 				CIPOS = i[5], 
 				CILEN = i[6], 
 				RE = i[4],
-				RNAMES = i[12])
+				RNAMES = i[12] if args.report_readid else "NULL")
 			if i[1] =="DEL":
 				info_list += ";STRAND=+-"
 			if i[11] == ".":
@@ -126,10 +127,10 @@ def generate_output(args, semi_result, contigINFO, argv, ref_g):
 				filter_lable = "PASS" if float(i[11]) >= 5.0 else "q5"
 			file.write("{CHR}\t{POS}\t{ID}\t{REF}\t{ALT}\t{QUAL}\t{PASS}\t{INFO}\t{FORMAT}\t{GT}:{DR}:{RE}:{PL}:{GQ}\n".format(
 				CHR = i[0], 
-				POS = i[2], 
+				POS = str(int(i[2]) + 1), 
 				ID = "cuteSV.%s.%d"%(i[1], svid[i[1]]),
-				REF = str(ref_g[i[0]].seq[int(i[2])]) if i[1] == 'INS' else str(ref_g[i[0]].seq[int(i[2]):int(i[2])-int(i[3])]),
-				ALT = "%s"%(i[13] if i[1] == 'INS' else str(ref_g[i[0]].seq[int(i[2])])), 
+				REF = str(ref_g[i[0]].seq[max(int(i[2])-1, 0)]) if i[1] == 'INS' else str(ref_g[i[0]].seq[max(int(i[2])-1, 0):int(i[2])-int(i[3])]),
+				ALT = "%s"%(str(ref_g[i[0]].seq[max(int(i[2])-1, 0)])+i[13] if i[1] == 'INS' else str(ref_g[i[0]].seq[max(int(i[2])-1, 0)])), 
 				INFO = info_list, 
 				FORMAT = "GT:DR:DV:PL:GQ", 
 				GT = i[8],
@@ -141,21 +142,21 @@ def generate_output(args, semi_result, contigINFO, argv, ref_g):
 				PASS = filter_lable))
 			svid[i[1]] += 1
 		elif i[1] == "DUP":
-			cal_end = int(i[2]) + abs(int(float(i[3])))
+			cal_end = int(i[2]) + 1 + abs(int(float(i[3])))
 			info_list = "{PRECISION};SVTYPE={SVTYPE};SVLEN={SVLEN};END={END};RE={RE};STRAND=-+;RNAMES={RNAMES}".format(
 				PRECISION = "IMPRECISE" if i[6] == "0/0" else "PRECISE", 
 				SVTYPE = i[1], 
 				SVLEN = i[3], 
 				END = str(cal_end), 
 				RE = i[4],
-				RNAMES = i[10])
+				RNAMES = i[10] if args.report_readid else "NULL")
 			if i[9] == ".":
 				filter_lable = "PASS"
 			else:
 				filter_lable = "PASS" if float(i[9]) >= 5.0 else "q5"
 			file.write("{CHR}\t{POS}\t{ID}\t{REF}\t{ALT}\t{QUAL}\t{PASS}\t{INFO}\t{FORMAT}\t{GT}:{DR}:{RE}:{PL}:{GQ}\n".format(
 				CHR = i[0], 
-				POS = i[2], 
+				POS = str(int(i[2]) + 1), 
 				ID = "cuteSV.%s.%d"%(i[1], svid[i[1]]),
 				REF = str(ref_g[i[0]].seq[int(i[2])]),
 				ALT = "<%s>"%(i[1]), 
@@ -170,7 +171,7 @@ def generate_output(args, semi_result, contigINFO, argv, ref_g):
 				PASS = filter_lable))
 			svid[i[1]] += 1
 		elif i[1] == "INV":
-			cal_end = int(i[2]) + abs(int(float(i[3])))
+			cal_end = int(i[2]) + 1 + abs(int(float(i[3])))
 			info_list = "{PRECISION};SVTYPE={SVTYPE};SVLEN={SVLEN};END={END};RE={RE};STRAND={STRAND};RNAMES={RNAMES}".format(
 				PRECISION = "IMPRECISE" if i[6] == "0/0" else "PRECISE", 
 				SVTYPE = i[1], 
@@ -178,14 +179,14 @@ def generate_output(args, semi_result, contigINFO, argv, ref_g):
 				END = str(cal_end), 
 				RE = i[4],
 				STRAND = i[7],
-				RNAMES = i[11])
+				RNAMES = i[11] if args.report_readid else "NULL")
 			if i[10] == ".":
 				filter_lable = "PASS"
 			else:
 				filter_lable = "PASS" if float(i[10]) >= 5.0 else "q5"
 			file.write("{CHR}\t{POS}\t{ID}\t{REF}\t{ALT}\t{QUAL}\t{PASS}\t{INFO}\t{FORMAT}\t{GT}:{DR}:{RE}:{PL}:{GQ}\n".format(
 				CHR = i[0], 
-				POS = i[2], 
+				POS = str(int(i[2]) + 1), 
 				ID = "cuteSV.%s.%d"%(i[1], svid[i[1]]),
 				REF = str(ref_g[i[0]].seq[int(i[2])]),
 				ALT = "<%s>"%(i[1]), 
@@ -201,22 +202,23 @@ def generate_output(args, semi_result, contigINFO, argv, ref_g):
 			svid[i[1]] += 1
 		else:
 			# BND
-			info_list = "{PRECISION};SVTYPE={SVTYPE};CHR2={CHR2};END={END};RE={RE};RNAMES={RNAMES}".format(
+			# info_list = "{PRECISION};SVTYPE={SVTYPE};CHR2={CHR2};END={END};RE={RE};RNAMES={RNAMES}".format(
+			info_list = "{PRECISION};SVTYPE={SVTYPE};RE={RE};RNAMES={RNAMES}".format(
 				PRECISION = "IMPRECISE" if i[7] == "0/0" else "PRECISE", 
 				SVTYPE = "BND", 
-				CHR2 = i[3], 
-				END = i[4], 
+				# CHR2 = i[3], 
+				# END = str(int(i[4]) + 1), 
 				RE = i[5],
-				RNAMES = i[11])
+				RNAMES = i[11] if args.report_readid else "NULL")
 			if i[10] == ".":
 				filter_lable = "PASS"
 			else:
 				filter_lable = "PASS" if float(i[10]) >= 5.0 else "q5"
 			file.write("{CHR}\t{POS}\t{ID}\t{REF}\t{ALT}\t{QUAL}\t{PASS}\t{INFO}\t{FORMAT}\t{GT}:{DR}:{RE}:{PL}:{GQ}\n".format(
 				CHR = i[0], 
-				POS = i[2], 
+				POS = str(int(i[2]) + 1), 
 				ID = "cuteSV.%s.%d"%("BND", svid["BND"]), 
-				REF = str(ref_g[i[0]].seq[int(i[2])]),
+				REF = 'N',
 				ALT = i[1], 
 				INFO = info_list, 
 				FORMAT = "GT:DR:DV:PL:GQ", 
@@ -228,3 +230,71 @@ def generate_output(args, semi_result, contigINFO, argv, ref_g):
 				QUAL = i[10],
 				PASS = filter_lable))
 			svid["BND"] += 1
+
+
+def generate_pvcf(args, result, contigINFO, argv):
+	file = open(args.output, 'w')
+	Generation_VCF_header(file, contigINFO, args.sample, argv)
+	file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n"%(args.sample))
+	
+	for i in result:
+		if i == []:
+			continue
+		info_list = "{PRECISION};SVTYPE={SVTYPE};SVLEN={SVLEN};END={END};CIPOS={CIPOS};CILEN={CILEN};RE={RE};RNAMES={RNAMES};STRAND={STRAND}".format(
+				PRECISION = "IMPRECISE" if i[2] == "0/0" else "PRECISE", 
+				SVTYPE = i[3], 
+				SVLEN = i[4], 
+				END = i[5], 
+				CIPOS = i[6][0] + ',' + i[6][1], 
+				CILEN = i[7][0] + ',' + i[7][1], 
+				RE = i[8],
+				RNAMES = i[9] if args.report_readid else "NULL",
+				STRAND = i[14])
+
+		file.write("{CHR}\t{POS}\t{ID}\t{REF}\t{ALT}\t{QUAL}\t{PASS}\t{INFO}\t{FORMAT}\t{GT}\n".format(
+			CHR = i[0], 
+			POS = str(i[1]), 
+			ID = i[10],
+			REF = i[11],
+			ALT = i[12], 
+			QUAL = '.' if i[13] == None else i[13],
+			PASS = 'PASS' if i[15] == [] else i[15],
+			INFO = info_list, 
+			FORMAT = "GT", 
+			GT = i[2]
+			))
+
+			
+def load_valuable_chr(path):
+	valuable_chr = dict()
+	valuable_chr["DEL"] = list()
+	valuable_chr["DUP"] = list()
+	valuable_chr["INS"] = list()
+	valuable_chr["INV"] = list()
+	valuable_chr["TRA"] = dict()
+
+	for svtype in ["DEL", "DUP", "INS", "INV"]:
+		file = open("%s%s.sigs"%(path, svtype), 'r')
+		for line in file:
+			chr = line.strip('\n').split('\t')[1]
+			if chr not in valuable_chr[svtype]:
+				valuable_chr[svtype].append(chr)
+		file.close()
+		valuable_chr[svtype].sort()
+
+	file = open("%s%s.sigs"%(path, "TRA"), 'r')
+	for line in file:
+		chr1 = line.strip('\n').split('\t')[1]
+		chr2 = line.strip('\n').split('\t')[4]
+		
+		if chr1 not in valuable_chr["TRA"]:
+			valuable_chr["TRA"][chr1] = list()
+		if chr2 not in valuable_chr["TRA"][chr1]:
+			valuable_chr["TRA"][chr1].append(chr2)
+
+	file.close()
+	for chr1 in valuable_chr["TRA"]:
+		valuable_chr["TRA"][chr1].sort()
+
+	return valuable_chr
+
