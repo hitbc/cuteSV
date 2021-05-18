@@ -2,12 +2,12 @@
  * All rights Reserved, Designed By HIT-Bioinformatics   
  * @Title:  cuteSV_Description.py
  * @author: tjiang
- * @date: Dec 31th 2020
- * @version V1.0.10
+ * @date: May 16th 2021
+ * @version V1.0.11
 '''
 import argparse
 
-VERSION = '1.0.10'
+VERSION = '1.0.11'
 
 class cuteSVdp(object):
 	'''
@@ -100,7 +100,8 @@ def parseArgs(argv):
 	# **************Parameters in signatures collection******************
 	GroupSignaturesCollect = parser.add_argument_group('Collection of SV signatures')
 	GroupSignaturesCollect.add_argument('-p', '--max_split_parts', 
-		help = "Maximum number of split segments a read may be aligned before it is ignored.[%(default)s]", 
+		help = "Maximum number of split segments a read may be aligned before it is ignored. All split segments are considered when using -1. \
+			(Recommand -1 when applying assembly-based alignment.)[%(default)s]", 
 		default = 7, 
 		type = int)
 	GroupSignaturesCollect.add_argument('-q', '--min_mapq', 

@@ -4,8 +4,8 @@
  * All rights Reserved, Designed By HIT-Bioinformatics   
  * @Title: cuteSV 
  * @author: tjiang
- * @data: Dec 31th 2020
- * @version V1.0.10
+ * @data: May 16th 2020
+ * @version V1.0.11
 '''
 
 import pysam
@@ -388,7 +388,7 @@ def organize_split_signal(chr, primary_info, Supplementary_info, total_L, SV_siz
 						local_start+local_set[2], local_chr, local_strand])
 				except:
 					pass
-	if len(split_read) <= max_split_parts:
+	if len(split_read) <= max_split_parts or max_split_parts == -1:
 		analysis_split_read(split_read, SV_size, total_L, read_name, candidate, MaxSize, query)
 
 def generate_combine_sigs(sigs, Chr_name, read_name, svtype, candidate, merge_dis):
@@ -469,7 +469,14 @@ def parse_read(read, Chr_name, SV_size, min_mapq, max_split_parts, min_read_len,
 		shift_ins = 0
 		softclip_left = 0
 		softclip_right = 0
+		hardclip_left = 0
+		hardclip_right = 0
 		shift_ins_read = 0
+		if read.cigar[0][0] == 4:
+			softclip_left = read.cigar[0][1]
+		if read.cigar[0][0] == 5:
+			hardclip_left = read.cigar[0][1]
+
 		for element in read.cigar:
 			if element[0] in [0, 7 ,8]:
 				shift_del += element[1]
@@ -488,12 +495,18 @@ def parse_read(read, Chr_name, SV_size, min_mapq, max_split_parts, min_read_len,
 			if element[0] == 1 and element[1] >= SV_size:
 				shift_ins += 1
 				Combine_sig_in_same_read_ins.append([pos_start+shift_ins, element[1],
-					str(read.query_sequence[shift_ins_read-element[1]:shift_ins_read])])
+					str(read.query_sequence[shift_ins_read-element[1]-hardclip_left:shift_ins_read-hardclip_left])])
 
-		if read.cigar[0][0] == 4:
-			softclip_left = read.cigar[0][1]
+		
 		if read.cigar[-1][0] == 4:
 			softclip_right = read.cigar[-1][1]
+		if read.cigar[-1][0] == 5:
+			hardclip_right = read.cigar[-1][1]
+
+		if hardclip_left != 0:
+			softclip_left = hardclip_left
+		if hardclip_right != 0:
+			softclip_right = hardclip_right
 
 	# ************Combine signals in same read********************
 	generate_combine_sigs(Combine_sig_in_same_read_ins, Chr_name, read.query_name, "INS", candidate, merge_ins_threshold)
@@ -632,11 +645,11 @@ def main_ctrl(args, argv):
 	#'''
 	logging.info("Rebuilding signatures of structural variants.")
 	analysis_pools = Pool(processes=int(args.threads))
-	cmd_del = ("cat %ssignatures/*.bed | grep DEL | sort -u | sort -k 2,2 -k 3,3n > %sDEL.sigs"%(temporary_dir, temporary_dir))
-	cmd_ins = ("cat %ssignatures/*.bed | grep INS | sort -u | sort -k 2,2 -k 3,3n > %sINS.sigs"%(temporary_dir, temporary_dir))
-	cmd_inv = ("cat %ssignatures/*.bed | grep INV | sort -u | sort -k 2,2 -k 3,3 -k 4,4n > %sINV.sigs"%(temporary_dir, temporary_dir))
-	cmd_tra = ("cat %ssignatures/*.bed | grep TRA | sort -u | sort -k 2,2 -k 5,5 -k 3,3 -k 4,4n > %sTRA.sigs"%(temporary_dir, temporary_dir))
-	cmd_dup = ("cat %ssignatures/*.bed | grep DUP | sort -u | sort -k 1,1r -k 2,2 -k 3,4n > %sDUP.sigs"%(temporary_dir, temporary_dir))
+	cmd_del = ("cat %ssignatures/*.bed | grep DEL | sort -u -T %s | sort -k 2,2 -k 3,3n -T %s > %sDEL.sigs"%(temporary_dir, temporary_dir, temporary_dir, temporary_dir))
+	cmd_ins = ("cat %ssignatures/*.bed | grep INS | sort -u -T %s | sort -k 2,2 -k 3,3n -T %s > %sINS.sigs"%(temporary_dir, temporary_dir, temporary_dir, temporary_dir))
+	cmd_inv = ("cat %ssignatures/*.bed | grep INV | sort -u -T %s | sort -k 2,2 -k 3,3 -k 4,4n -T %s > %sINV.sigs"%(temporary_dir, temporary_dir, temporary_dir, temporary_dir))
+	cmd_tra = ("cat %ssignatures/*.bed | grep TRA | sort -u -T %s | sort -k 2,2 -k 5,5 -k 3,3 -k 4,4n -T %s > %sTRA.sigs"%(temporary_dir, temporary_dir, temporary_dir, temporary_dir))
+	cmd_dup = ("cat %ssignatures/*.bed | grep DUP | sort -u -T %s | sort -k 1,1r -k 2,2 -k 3,4n -T %s > %sDUP.sigs"%(temporary_dir, temporary_dir, temporary_dir, temporary_dir))
 	for i in [cmd_ins, cmd_del, cmd_dup, cmd_tra, cmd_inv]:
 		analysis_pools.map_async(exe, (i,))
 	analysis_pools.close()
@@ -746,7 +759,8 @@ def main_ctrl(args, argv):
 
 	if args.Ivcf != None:
 		result = sorted(result, key = lambda x:(x[0], x[1]))
-		generate_pvcf(args, result, contigINFO, argv)
+		ref_g = SeqIO.to_dict(SeqIO.parse(args.reference, "fasta"))
+		generate_pvcf(args, result, contigINFO, argv, ref_g)
 
 	else:
 		semi_result = list()
